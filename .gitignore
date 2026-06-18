@@ -1,0 +1,26 @@
+node_modules/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+*.local
+*.log
+.vscode/
+.idea/
+*.swp
+*.bak
+*.exe
+
+# Local runtime state and private tunnel credentials live outside the package,
+# but keep these ignored in case a user copies them into the project folder.
+secrets.json
+.mcp-local-files/
+*.pem
+*.key
+id_rsa*
+id_ed25519*

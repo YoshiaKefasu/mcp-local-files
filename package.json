@@ -1,0 +1,29 @@
+{
+  "name": "mcp-local-files",
+  "version": "0.1.0",
+  "description": "Local Files MCP server with safe text and binary file tools.",
+  "main": "server.js",
+  "bin": {
+    "mcp-local-files": "./cli.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check cli.js"
+  },
+  "keywords": [
+    "mcp",
+    "local-files",
+    "openai",
+    "tunnel-client"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=18.14.1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}
