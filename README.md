@@ -1,5 +1,7 @@
 # Local Files MCP
 
+English | [日本語](README.ja.md)
+
 A small local MCP server that lets ChatGPT/Codex read, search, and edit a single allowed folder on this Windows machine through OpenAI Secure MCP Tunnel.
 
 This project is intentionally simple and local-first. The server runs over stdio, and `tunnel-client.exe` forwards ChatGPT MCP requests to it. The exposed folder is controlled by `root-dir.txt`, not hardcoded in `server.js`.
