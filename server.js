@@ -2,9 +2,30 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-const ROOT_DIR = process.env.ROOT_DIR;
+function resolveRootDir() {
+  const fromEnv = process.env.ROOT_DIR;
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+
+  const fromArg = process.argv[2];
+  if (fromArg && fromArg.trim()) return fromArg.trim();
+
+  const home = process.env.USERPROFILE || os.homedir();
+  const rootFile = path.join(home, "mcp-local-files", "root-dir.txt");
+  try {
+    const content = readFileSync(rootFile, "utf8").trim();
+    if (content) return content;
+  } catch {
+    // root-dir.txt is optional; ignore read errors and fall through.
+  }
+
+  return null;
+}
+
+const ROOT_DIR = resolveRootDir();
 
 if (!ROOT_DIR) {
   console.error("ROOT_DIR is required.");
@@ -159,7 +180,7 @@ function result(data) {
 
 const server = new McpServer({
   name: "mcp-local-files",
-  version: "0.1.0"
+  version: "0.1.1"
 });
 
 server.registerTool(

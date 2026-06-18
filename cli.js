@@ -43,7 +43,7 @@ Usage:
   mcp-local-files tunnel <args...>        Run OpenAI tunnel-client, downloading it if needed
 
 Options:
-  --profile <name>        Tunnel profile to use with --tunnel-here (default: ${DEFAULT_PROFILE})
+  --profile <name>        Tunnel profile name for setup/--tunnel-here (default: last setup profile, then ${DEFAULT_PROFILE})
   --tunnel-client <path>  Use an existing tunnel-client binary
   --tunnel-id <id>        Tunnel id for setup
   --mcp-command <command> MCP command for setup (default: ${defaultMcpCommand()})
@@ -57,6 +57,7 @@ function parseArgs(argv) {
   const parsed = {
     command: "server",
     profile: DEFAULT_PROFILE,
+    profileSpecified: false,
     tunnelClient: process.env.TUNNEL_CLIENT_PATH || "",
     root: "",
     tunnelId: "",
@@ -81,6 +82,7 @@ function parseArgs(argv) {
       break;
     } else if (arg === "--profile") {
       parsed.profile = requireValue(arg, args.shift());
+      parsed.profileSpecified = true;
     } else if (arg === "--tunnel-client") {
       parsed.tunnelClient = requireValue(arg, args.shift());
     } else if (arg === "--root") {
@@ -148,7 +150,7 @@ async function writeRootFileBestEffort(filePath, rootDir) {
 
 async function readSecrets() {
   if (!await pathExists(CONFIG_SECRETS_FILE)) {
-    return { profiles: {} };
+    return { defaultProfile: "", profiles: {} };
   }
 
   let parsed;
@@ -165,6 +167,7 @@ async function readSecrets() {
     : {};
 
   return {
+    defaultProfile: typeof parsed?.defaultProfile === "string" ? parsed.defaultProfile : "",
     profiles
   };
 }
@@ -180,11 +183,24 @@ async function writeSecrets(secrets) {
 
 async function saveProfileSecret(profile, tunnelId, apiKey) {
   const secrets = await readSecrets();
+  secrets.defaultProfile = profile;
   secrets.profiles[profile] = {
     tunnelId,
     controlPlaneApiKey: apiKey
   };
   await writeSecrets(secrets);
+}
+
+async function resolveProfile(requestedProfile, profileSpecified = false) {
+  if (profileSpecified) return requestedProfile;
+
+  const secrets = await readSecrets();
+  if (secrets.defaultProfile) return secrets.defaultProfile;
+
+  const savedProfiles = Object.keys(secrets.profiles || {});
+  if (savedProfiles.length === 1) return savedProfiles[0];
+
+  return requestedProfile || DEFAULT_PROFILE;
 }
 
 async function loadProfileEnv(profile) {
@@ -556,7 +572,8 @@ async function setupProfile(parsed) {
   });
 
   console.error(`Saved tunnel credentials for profile '${profile}' to ${CONFIG_SECRETS_FILE}`);
-  console.error(`Next: mcp-local-files --tunnel-here --profile ${profile}`);
+  console.error(`Default tunnel profile is now '${profile}'.`);
+  console.error("Next: mcp-local-files --tunnel-here");
 }
 
 async function main() {
@@ -584,9 +601,11 @@ async function main() {
 
   if (parsed.command === "tunnel-here") {
     const root = process.cwd();
+    const profile = await resolveProfile(parsed.profile, parsed.profileSpecified);
     await writeRootFiles(root);
     console.error(`Local Files MCP ROOT_DIR is now: ${root}`);
-    await runTunnel(["run", "--profile", parsed.profile], parsed.tunnelClient, parsed.profile);
+    console.error(`Using tunnel profile: ${profile}`);
+    await runTunnel(["run", "--profile", profile], parsed.tunnelClient, profile);
   }
 }
 

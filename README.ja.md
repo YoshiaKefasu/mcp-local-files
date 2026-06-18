@@ -69,7 +69,7 @@ https://platform.openai.com/settings/organization/tunnels
 https://platform.openai.com/settings/organization/api-keys
 ```
 
-デフォルト profile:
+setup 画面で最初に出るデフォルト profile 名:
 
 ```text
 local-files
@@ -82,6 +82,8 @@ Runtime API key の保存先:
 ```
 
 このファイルはリポジトリ外です。Git に入れないでください。
+
+setup 後は、いま作った profile が CLI の既定 profile として保存されます。つまり `mcp-local-files --tunnel-here` は、`--profile` を付けなくても直近で作った profile を自動で使います。古いCLIでsetup済みの場合も、保存済み profile が1つだけならそれを自動で使います。
 
 非対話で profile / tunnel_id だけ指定する場合:
 
@@ -96,6 +98,14 @@ Windows で profile に保存されるデフォルト MCP command:
 ```text
 cmd /d /s /c "%USERPROFILE%/mcp-local-files/run-mcp.cmd"
 ```
+
+`run-mcp.cmd` は `root-dir.txt` から `ROOT_DIR` を読んだあと、`endlocal & set` トリックで cmd のローカルスコープを抜けて子プロセス `node` まで環境変数を届けます。`server.js` 側では `ROOT_DIR` を次の順で解決します:
+
+1. `process.env.ROOT_DIR`
+2. `process.argv[2]`
+3. `%USERPROFILE%\mcp-local-files\root-dir.txt`
+
+このおかげで、`run-mcp.cmd` は tunnel-client の起動先と、ローカル動作確認用のどちらにも使えます。`cd` してから呼ぶ必要はありません。
 
 ## 公開フォルダを切り替える
 
@@ -112,7 +122,7 @@ mcp-local-files --tunnel-here
 1. 現在のフォルダを root-dir.txt に保存
 2. tunnel-client がなければ公式ReleaseからDL
 3. SHA256SUMS.txt で検証
-4. profile local-files で tunnel-client run
+4. 直近の setup で作った profile で tunnel-client run
 ```
 
 別 profile を使う場合:

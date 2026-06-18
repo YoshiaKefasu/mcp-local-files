@@ -166,11 +166,13 @@ Set current terminal folder as MCP root:
 %USERPROFILE%\mcp-local-files\mcp-here.cmd
 ```
 
-Set the current folder as MCP root and start the existing tunnel profile through the npm CLI:
+Set the current folder as MCP root and start the last profile created by `mcp-local-files setup` through the npm CLI:
 
 ```powershell
-mcp-local-files --tunnel-here --profile local-files
+mcp-local-files --tunnel-here
 ```
+
+Use `--profile local-files` only when intentionally overriding the saved default profile.
 
 Run OpenAI tunnel-client through the npm CLI auto-downloader:
 
@@ -236,6 +238,8 @@ cmd /d /s /c "%USERPROFILE%/mcp-local-files/run-mcp.cmd"
 ```
 
 The command should start and stay alive. Stop with `Ctrl+C`.
+
+The same command is also the one tunnel-client spawns when `mcp-local-files --tunnel-here` (or `setup`) saved it into the profile. `run-mcp.cmd` uses the `endlocal & set` trick to export `ROOT_DIR` to the child node process; `server.js` falls back to `process.argv[2]` and then `root-dir.txt` if the env var is missing. Do not silently drop those two safety nets — they keep the script working both from any cwd and from the tunnel-client child context.
 
 Then run:
 

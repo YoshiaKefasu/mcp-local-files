@@ -80,7 +80,7 @@ https://platform.openai.com/settings/organization/tunnels
 https://platform.openai.com/settings/organization/api-keys
 ```
 
-The default profile is:
+The default profile name shown by setup is:
 
 ```text
 local-files
@@ -93,6 +93,8 @@ The Runtime API key is stored in the user's private config file:
 ```
 
 Do not commit this file. It is intentionally outside the npm package folder.
+
+After setup, the profile you just created is saved as the CLI default. That means `mcp-local-files --tunnel-here` will use that profile automatically unless you pass `--profile`. If you already ran setup with an older CLI, the command also falls back to the only saved profile when exactly one profile exists.
 
 Non-interactive values can be passed like this:
 
@@ -109,6 +111,14 @@ cmd /d /s /c "%USERPROFILE%/mcp-local-files/run-mcp.cmd"
 ```
 
 This keeps the existing `run-mcp.cmd` / `root-dir.txt` flow intact.
+
+`run-mcp.cmd` reads `ROOT_DIR` from `root-dir.txt`, then exports it to the child `node` process using the `endlocal & set` trick so the env var survives across cmd's local scope. `server.js` resolves `ROOT_DIR` from, in order:
+
+1. `process.env.ROOT_DIR`
+2. `process.argv[2]`
+3. `%USERPROFILE%\mcp-local-files\root-dir.txt`
+
+This lets the same `run-mcp.cmd` work both as the tunnel target and as a local smoke test without changing directory first.
 
 ## Change the exposed folder quickly
 
@@ -134,7 +144,7 @@ cd C:\path\to\your-project
 mcp-local-files --tunnel-here
 ```
 
-`--tunnel-here` writes the current folder to the root file, downloads OpenAI `tunnel-client` on first use if needed, verifies its SHA256 checksum, and starts the existing tunnel profile.
+`--tunnel-here` writes the current folder to the root file, downloads OpenAI `tunnel-client` on first use if needed, verifies its SHA256 checksum, and starts the last profile created by `mcp-local-files setup`.
 
 Use a different profile when needed:
 
