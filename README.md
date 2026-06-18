@@ -231,11 +231,52 @@ The server registers these tools:
 list_files       List files and folders inside ROOT_DIR
 read_file        Read UTF-8 text files inside ROOT_DIR
 search_files     Search text files inside ROOT_DIR
+stat_file        Return metadata for a file or folder inside ROOT_DIR
+copy_file        Copy one file inside ROOT_DIR without deleting the source
+copy_files       Copy multiple files inside ROOT_DIR without deleting sources
 write_file       Create or overwrite UTF-8 text files inside ROOT_DIR
 replace_in_file  Replace exact text inside a UTF-8 text file inside ROOT_DIR
 read_binary_file_base64  Read a binary file inside ROOT_DIR and return base64
 write_base64_file        Decode base64 and write a binary file inside ROOT_DIR
 ```
+
+### Copy / transfer tools
+
+Use these when you want TransferFiles-style local movement inside the exposed folder. They only copy files inside `ROOT_DIR`; they do not delete source files and they still block absolute paths or `..` escapes.
+
+`stat_file` input:
+
+```json
+{
+  "path": "dist/app.zip"
+}
+```
+
+`copy_file` input:
+
+```json
+{
+  "sourcePath": "dist/app.zip",
+  "destinationPath": "incoming/app.zip",
+  "overwrite": false
+}
+```
+
+`copy_files` input:
+
+```json
+{
+  "files": [
+    {
+      "sourcePath": "dist/app.zip",
+      "destinationPath": "incoming/app.zip"
+    }
+  ],
+  "overwrite": false
+}
+```
+
+Batch copies are checked before copying starts. Existing destination files are protected unless `overwrite` is explicitly set to `true`. Single copied files are capped at 100 MB, and one batch can contain up to 100 files.
 
 ### Binary file tools
 
@@ -277,6 +318,8 @@ text reads for non-allowlisted file types
 large text search over files bigger than 2 MB
 binary reads above the requested maxBytes limit
 binary writes above the server write-size limit
+copying files larger than 100 MB
+batch copy requests above 100 files
 ```
 
 The directory walker skips:

@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import fs from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { constants as fsConstants, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -40,6 +40,8 @@ const DEFAULT_BINARY_READ_MAX_BYTES = 10_000_000;
 const MAX_BINARY_READ_BYTES = 25_000_000;
 const MAX_BINARY_WRITE_BYTES = 25_000_000;
 const MAX_BINARY_WRITE_BASE64_CHARS = 4 * Math.ceil(MAX_BINARY_WRITE_BYTES / 3);
+const MAX_COPY_BYTES = 100_000_000;
+const MAX_BATCH_COPY_FILES = 100;
 
 const TEXT_EXTENSIONS = new Set([
   ".txt", ".md", ".mdx", ".json", ".js", ".jsx", ".ts", ".tsx",
@@ -139,6 +141,89 @@ async function exists(filePath) {
   }
 }
 
+function toDisplayPath(relativePath) {
+  return (relativePath || ".").replaceAll("\\", "/");
+}
+
+async function statFile(full, rel) {
+  let stat;
+  try {
+    stat = await fs.stat(full);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new Error("Path does not exist.");
+    }
+    throw error;
+  }
+
+  return {
+    path: toDisplayPath(rel),
+    type: stat.isDirectory() ? "dir" : stat.isFile() ? "file" : "other",
+    size: stat.size,
+    modifiedTime: stat.mtime.toISOString(),
+    createdTime: stat.birthtime.toISOString()
+  };
+}
+
+async function prepareCopyFile(sourcePath, destinationPath, overwrite = false) {
+  const source = safePath(sourcePath);
+  const destination = safePath(destinationPath);
+
+  if (source.full === destination.full) {
+    throw new Error("Source and destination must be different paths.");
+  }
+
+  const sourceStat = await fs.stat(source.full);
+  if (!sourceStat.isFile()) {
+    throw new Error("Source path is not a file.");
+  }
+
+  if (sourceStat.size > MAX_COPY_BYTES) {
+    throw new Error(`Source file is too large to copy. Size is ${sourceStat.size} bytes, max is ${MAX_COPY_BYTES}.`);
+  }
+
+  const destinationExists = await exists(destination.full);
+  if (destinationExists && !overwrite) {
+    throw new Error("Destination file already exists. Set overwrite=true to replace it.");
+  }
+
+  if (destinationExists) {
+    const destinationStat = await fs.stat(destination.full);
+    if (!destinationStat.isFile()) {
+      throw new Error("Destination path exists but is not a file.");
+    }
+  }
+
+  return {
+    sourceFull: source.full,
+    destinationFull: destination.full,
+    sourcePath: toDisplayPath(source.rel),
+    destinationPath: toDisplayPath(destination.rel),
+    bytesCopied: sourceStat.size,
+    overwritten: destinationExists
+  };
+}
+
+async function copyPreparedFile(prepared) {
+  await fs.mkdir(path.dirname(prepared.destinationFull), { recursive: true });
+  await fs.copyFile(
+    prepared.sourceFull,
+    prepared.destinationFull,
+    prepared.overwritten ? 0 : fsConstants.COPYFILE_EXCL
+  );
+
+  return {
+    sourcePath: prepared.sourcePath,
+    destinationPath: prepared.destinationPath,
+    bytesCopied: prepared.bytesCopied,
+    overwritten: prepared.overwritten
+  };
+}
+
+async function copyOneFile(sourcePath, destinationPath, overwrite = false) {
+  return copyPreparedFile(await prepareCopyFile(sourcePath, destinationPath, overwrite));
+}
+
 async function walk(dir, maxDepth = 3, limit = 300, depth = 0, out = []) {
   if (out.length >= limit) return out;
 
@@ -180,7 +265,7 @@ function result(data) {
 
 const server = new McpServer({
   name: "mcp-local-files",
-  version: "0.1.1"
+  version: "0.1.2"
 });
 
 server.registerTool(
@@ -299,6 +384,26 @@ server.registerTool(
 );
 
 server.registerTool(
+  "stat_file",
+  {
+    title: "Stat file",
+    description: "Return metadata for a file or folder inside the allowed local folder.",
+    inputSchema: {
+      path: z.string().default(".")
+    },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false
+    }
+  },
+  async ({ path: inputPath = "." }) => {
+    const { full, rel } = safePath(inputPath);
+    return result(await statFile(full, rel));
+  }
+);
+
+server.registerTool(
   "search_files",
   {
     title: "Search files",
@@ -351,6 +456,73 @@ server.registerTool(
     }
 
     return result({ query, matches });
+  }
+);
+
+server.registerTool(
+  "copy_file",
+  {
+    title: "Copy file",
+    description: "Copy one file inside the allowed local folder. Does not delete the source file.",
+    inputSchema: {
+      sourcePath: z.string(),
+      destinationPath: z.string(),
+      overwrite: z.boolean().default(false)
+    },
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: true
+    }
+  },
+  async ({ sourcePath, destinationPath, overwrite = false }) => {
+    return result(await copyOneFile(sourcePath, destinationPath, overwrite));
+  }
+);
+
+server.registerTool(
+  "copy_files",
+  {
+    title: "Copy files",
+    description: "Copy multiple files inside the allowed local folder. Does not delete source files.",
+    inputSchema: {
+      files: z.array(z.object({
+        sourcePath: z.string(),
+        destinationPath: z.string()
+      })).min(1).max(MAX_BATCH_COPY_FILES),
+      overwrite: z.boolean().default(false)
+    },
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: true
+    }
+  },
+  async ({ files, overwrite = false }) => {
+    const prepared = [];
+    const destinations = new Set();
+
+    for (const file of files) {
+      const next = await prepareCopyFile(file.sourcePath, file.destinationPath, overwrite);
+      const resolvedDestination = path.resolve(next.destinationFull);
+      const destinationKey = process.platform === "win32"
+        ? resolvedDestination.toLowerCase()
+        : resolvedDestination;
+
+      if (destinations.has(destinationKey)) {
+        throw new Error(`Duplicate destinationPath in batch: ${next.destinationPath}`);
+      }
+
+      destinations.add(destinationKey);
+      prepared.push(next);
+    }
+
+    const copied = [];
+    for (const file of prepared) {
+      copied.push(await copyPreparedFile(file));
+    }
+
+    return result({ copied, count: copied.length });
   }
 );
 

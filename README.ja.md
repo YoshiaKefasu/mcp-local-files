@@ -12,13 +12,16 @@ OpenAI Secure MCP Tunnel 経由で動きます。サーバー本体は stdio で
 list_files       ROOT_DIR 内のファイル一覧
 read_file        UTF-8 テキストファイルの読み取り
 search_files     テキストファイル検索
+stat_file        ファイル/フォルダのメタデータ確認
+copy_file        ROOT_DIR 内で1ファイルをコピー
+copy_files       ROOT_DIR 内で複数ファイルをコピー
 write_file       UTF-8 テキストファイルの作成・上書き
 replace_in_file  テキストの完全一致置換
 read_binary_file_base64  バイナリファイルを base64 で読み取り
 write_base64_file        base64 をデコードしてバイナリ書き込み
 ```
 
-画像、PDF、ZIP などは `read_binary_file_base64` / `write_base64_file` で扱えます。
+画像、PDF、ZIP などは `read_binary_file_base64` / `write_base64_file` で扱えます。ROOT_DIR 内でファイルを移す用途は、削除を伴わない `copy_file` / `copy_files` を使います。
 
 ## ファイル構成
 
@@ -185,6 +188,44 @@ macOS/Linux: ~/.cache/mcp-local-files/tunnel-client
 
 `tunnel-client` バイナリはこのパッケージに同梱しません。
 
+## コピー / TransferFiles 風の使い方
+
+ROOT_DIR 内だけでファイルをコピーできます。元ファイルは削除しません。絶対パスや `..` で ROOT_DIR 外へ出る指定は引き続きブロックします。
+
+メタデータ確認:
+
+```json
+{
+  "path": "dist/app.zip"
+}
+```
+
+1ファイルコピー:
+
+```json
+{
+  "sourcePath": "dist/app.zip",
+  "destinationPath": "incoming/app.zip",
+  "overwrite": false
+}
+```
+
+複数ファイルコピー:
+
+```json
+{
+  "files": [
+    {
+      "sourcePath": "dist/app.zip",
+      "destinationPath": "incoming/app.zip"
+    }
+  ],
+  "overwrite": false
+}
+```
+
+複数コピーは、先に全件チェックしてからコピーします。既存ファイルは `overwrite: true` を明示しない限り上書きしません。1ファイルのコピー上限は100MB、1回の複数コピーは100件までです。
+
 ## バイナリファイルの扱い
 
 読み取り例:
@@ -223,6 +264,8 @@ macOS/Linux: ~/.cache/mcp-local-files/tunnel-client
 2MB超の巨大テキスト検索
 maxBytes を超えるバイナリ読み取り
 上限を超えるバイナリ書き込み
+100MB超のファイルコピー
+100件超の複数コピー
 ```
 
 ディレクトリ探索では以下をスキップします。

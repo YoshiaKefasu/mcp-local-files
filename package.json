@@ -1,6 +1,6 @@
 {
   "name": "mcp-local-files",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local Files MCP server with safe text and binary file tools.",
   "main": "server.js",
   "bin": {

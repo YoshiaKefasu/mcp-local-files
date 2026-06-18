@@ -42,6 +42,9 @@ Registered tools:
 list_files
 read_file
 search_files
+stat_file
+copy_file
+copy_files
 write_file
 replace_in_file
 read_binary_file_base64
@@ -69,6 +72,8 @@ Do not log normal protocol messages to stdout. MCP over stdio uses stdout. Any d
 Do not bundle `tunnel-client.exe` in this npm package. If tunnel support is needed, download the matching OpenAI release asset on demand, verify `SHA256SUMS.txt`, and cache the binary under the user's cache directory.
 
 Do not add destructive file tools such as recursive delete, shell execution, arbitrary command execution, or binary overwrite without a separate explicit request from the user.
+
+Copy-style transfer tools are allowed only within `ROOT_DIR`. Keep `copy_file` and `copy_files` non-deleting, keep `overwrite=false` by default, keep batch preflight checks before writing, and keep conservative caps.
 
 Binary file writes are allowed only through `write_base64_file`, and must keep the existing `safePath()` guard, `overwrite=false` default, and size cap intact.
 
@@ -111,6 +116,8 @@ Avoid reading huge files by default. Search currently skips files above 2 MB. Ke
 ## Binary file handling
 
 `read_binary_file_base64` and `write_base64_file` exist for images, ZIPs, PDFs, and other byte-for-byte transfers that UTF-8 text tools cannot handle safely.
+
+`stat_file`, `copy_file`, and `copy_files` provide TransferFiles-style local file handling inside `ROOT_DIR` without deleting sources.
 
 Keep these constraints intact:
 
